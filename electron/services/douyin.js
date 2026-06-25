@@ -39,7 +39,53 @@ async function fetchDouyinMetadataByApi(awemeId) {
       lastError = error;
     }
   }
+  try {
+    const fromSharePage = await fetchDouyinMetadataBySharePage(awemeId);
+    if (fromSharePage) return fromSharePage;
+  } catch (error) {
+    lastError = error;
+  }
   throw lastError || new Error("metadata API unavailable");
+}
+
+async function fetchDouyinMetadataBySharePage(awemeId) {
+  const res = await axios.get(`https://www.iesdouyin.com/share/video/${encodeURIComponent(awemeId)}/`, {
+    timeout: 15000,
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 Chrome/122.0 Mobile Safari/537.36",
+      Referer: "https://www.iesdouyin.com/"
+    },
+    validateStatus: () => true
+  });
+  if (res.status < 200 || res.status >= 300) throw new Error(`share page status ${res.status}`);
+
+  const html = decodeHtml(String(res.data || ""));
+  const routerData = extractWindowJson(html, "_ROUTER_DATA");
+  const videoInfoRes = routerData?.loaderData?.["video_(id)/page"]?.videoInfoRes
+    || routerData?.loaderData?.["note_(id)/page"]?.videoInfoRes;
+  const normalized = normalizeAwemeResponse(videoInfoRes, awemeId);
+  if (normalized && (normalized.videoUrl || normalized.images.length)) return normalized;
+
+  const images = [];
+  const seen = new Set();
+  for (const match of html.matchAll(/<img\b[^>]+\bsrc=["']([^"']*douyinpic\.com[^"']*)["']/gi)) {
+    const url = match[1];
+    if (!/biz_tag=aweme_images/i.test(url)) continue;
+    if (!seen.has(url)) {
+      seen.add(url);
+      images.push(url);
+    }
+  }
+  if (!images.length) throw new Error("share page missing media urls");
+
+  const title = (html.match(/<title[^>]*>([^<]+)/i)?.[1] || "").replace(/\s*-\s*抖音\s*$/, "").trim();
+  return {
+    awemeId,
+    title,
+    mediaType: "image",
+    images,
+    videoUrl: ""
+  };
 }
 
 function normalizeAwemeResponse(data, awemeId) {
@@ -70,3 +116,23 @@ function normalizeAwemeResponse(data, awemeId) {
 }
 
 module.exports = { extractAwemeId, fetchDouyinMetadataByApi };
+
+function decodeHtml(text) {
+  return text
+    .replace(/\\u002[fF]/g, "/")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "\"");
+}
+
+function extractWindowJson(html, name) {
+  const start = html.indexOf(`window.${name} = `);
+  if (start < 0) return null;
+  const from = start + `window.${name} = `.length;
+  const end = html.indexOf("</script>", from);
+  if (end < 0) return null;
+  try {
+    return JSON.parse(html.slice(from, end).trim());
+  } catch (_error) {
+    return null;
+  }
+}

@@ -766,7 +766,9 @@ function maybeNotifyCookieFailure(task) {
   const detail = /Cookie 数据库被占用/i.test(msg)
     ? "浏览器 Cookie 数据库被占用。请彻底关闭 Edge/Chrome（含后台进程）后重试。"
     : (state.settings?.cookiesTxtPath
-      ? "已配置 cookies.txt，但仍未通过认证。可能原因：导出不完整、文件格式不正确、风控拦截或登录态失效。请重新在抖音页面导出后重试。"
+      ? (state.cookiesHealth && !state.cookiesHealth.ok
+        ? `cookies.txt 无效：${state.cookiesHealth.message || "校验未通过"}。请重新在抖音页面导出后重试。`
+        : "已配置 cookies.txt，但仍未通过认证。请重新在抖音页面导出后重试。")
       : "抖音需要浏览器登录态 Cookies。请先在 Edge/Chrome 登录抖音网页版，关闭浏览器后重试。");
   pushLog(detail);
   alert(detail);

@@ -70,13 +70,7 @@ function stripAdNoise(text) {
     kept.push(line);
   }
 
-  // If the source contains a real share URL, prefer the line/segment around that URL.
-  const joined = kept.join(" ");
-  const shareMatch = joined.match(/.{0,80}https?:\/\/(?:v\.)?douyin\.com\/[^\s]+.{0,60}/i);
-  if (shareMatch) {
-    return shareMatch[0].trim();
-  }
-  return joined.trim();
+  return kept.join(" ").trim();
 }
 
 module.exports = { parseShareText };

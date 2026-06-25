@@ -112,7 +112,22 @@ function createDownloader({ db, onTaskUpdate, onLog, onProgress }) {
 
     try {
       let downloadedBy = "";
-      if (metadata && (metadata.videoUrl || (metadata.images && metadata.images.length))) {
+      const mediaUrls = parsed.urls;
+      if (mediaUrls.length) {
+        try {
+          downloadedBy = await downloadInputMediaUrls({
+            taskId: task.id,
+            taskDir,
+            urls: mediaUrls,
+            title: parsed.title || task.title,
+            log,
+            onProgress: (progress) => onProgress && onProgress(progress)
+          });
+        } catch (directError) {
+          log(`任务#${task.id} 输入链接不是可下载媒体直链: ${directError.message}`, "warn");
+        }
+      }
+      if (!downloadedBy && metadata && (metadata.videoUrl || (metadata.images && metadata.images.length))) {
         try {
           downloadedBy = await downloadByDirectLinks({
             taskId: task.id,
@@ -264,6 +279,29 @@ function countFiles(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).filter((x) => x.isFile()).length;
 }
 
+async function downloadInputMediaUrls({ taskId, taskDir, urls, title, log, onProgress }) {
+  let saved = 0;
+  let lastError = null;
+  for (const url of urls) {
+    saved += 1;
+    const ext = path.extname(new URL(url).pathname) || ".bin";
+    const name = sanitize(String(title || "media").slice(0, 60)).trim() || "media";
+    try {
+      await downloadToFile(url, path.join(taskDir, `${name}_${String(saved).padStart(2, "0")}${ext}`), {
+        headers: defaultHttpHeaders(),
+        mediaOnly: true,
+        onProgress: (p) => onProgress && onProgress({ taskId, ...p })
+      });
+      log(`任务#${taskId} 输入媒体直链下载 ${saved}/${urls.length}`);
+    } catch (error) {
+      saved -= 1;
+      lastError = error;
+    }
+  }
+  if (!saved) throw lastError || new Error("未找到媒体直链");
+  return "input-media";
+}
+
 async function downloadByDirectLinks({ taskId, taskDir, metadata, log, onProgress }) {
   const titleBase = sanitize(String(metadata.title || metadata.awemeId || "douyin").slice(0, 60)).trim() || "douyin";
   if (metadata.mediaType === "image" && metadata.images?.length) {
@@ -310,7 +348,7 @@ async function downloadByDirectLinks({ taskId, taskDir, metadata, log, onProgres
   throw new Error("metadata has no direct media urls");
 }
 
-function downloadToFile(url, filePath, { headers = {}, onProgress } = {}) {
+function downloadToFile(url, filePath, { headers = {}, onProgress, mediaOnly = false } = {}) {
   return new Promise((resolve, reject) => {
     const client = String(url).startsWith("https:") ? https : http;
     const startedAt = Date.now();
@@ -318,17 +356,25 @@ function downloadToFile(url, filePath, { headers = {}, onProgress } = {}) {
       if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
         const nextUrl = new URL(res.headers.location, url).toString();
         res.resume();
-        return resolve(downloadToFile(nextUrl, filePath, { headers, onProgress }));
+        return resolve(downloadToFile(nextUrl, filePath, { headers, onProgress, mediaOnly }));
       }
       if ((res.statusCode || 0) >= 400) {
         const code = res.statusCode;
         res.resume();
         return reject(new Error(`直链下载失败 HTTP ${code}`));
       }
+      const contentType = String(res.headers["content-type"] || "").split(";")[0].toLowerCase();
+      const isMedia = contentType.startsWith("image/") || contentType.startsWith("video/");
+      const maybeMedia = (!contentType || contentType === "application/octet-stream") && isMediaLikeUrl(url);
+      if (mediaOnly && !isMedia && !maybeMedia) {
+        res.resume();
+        return reject(new Error("不是图片/视频直链"));
+      }
 
       const total = Number(res.headers["content-length"] || 0);
       let received = 0;
-      const writer = fs.createWriteStream(filePath);
+      const finalPath = path.extname(filePath) === ".bin" ? filePath.replace(/\.bin$/, extFromContentType(contentType)) : filePath;
+      const writer = fs.createWriteStream(finalPath);
       res.on("data", (chunk) => {
         received += chunk.length;
         if (onProgress && total > 0) {
@@ -362,6 +408,21 @@ function defaultHttpHeaders() {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0 Safari/537.36",
     Referer: "https://www.douyin.com/"
   };
+}
+
+function isMediaLikeUrl(url) {
+  return /\.(mp4|m4v|mov|webm|mkv|jpg|jpeg|png|webp|gif)(?:[?#]|$)/i.test(String(url || ""));
+}
+
+function extFromContentType(contentType) {
+  return {
+    "video/mp4": ".mp4",
+    "video/webm": ".webm",
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif"
+  }[contentType] || ".bin";
 }
 
 function runYtDlp(taskId, url, outDir, onSpawn, log, onProgress, runner, cookieBrowserPref = "auto", cookiesTxtPath = "", cookiesTxtOnlyMode = false) {
@@ -533,10 +594,11 @@ function isUnsupportedImpersonateError(text) {
 function buildCookieAttempts(runner, pref, cookiesTxtPath = "", options = {}) {
   const cookiesTxtOnlyMode = !!options.cookiesTxtOnlyMode;
   const base = { label: runner.label, extraArgs: [] };
-  const cookiesTxt = (cookiesTxtPath && fs.existsSync(cookiesTxtPath))
+  const cookiesTxt = (isUsableCookiesTxt(cookiesTxtPath))
     ? { label: `${runner.label} + cookies.txt`, extraArgs: ["--cookies", cookiesTxtPath] }
     : null;
   const edge = { label: `${runner.label} + Edge Cookies`, extraArgs: ["--cookies-from-browser", "edge"] };
+  const edgeProfile = { label: `${runner.label} + Edge Cookies (Profile 4)`, extraArgs: ["--cookies-from-browser", "edge:Profile 4"] };
   const chrome = { label: `${runner.label} + Chrome Cookies`, extraArgs: ["--cookies-from-browser", "chrome"] };
   const list = [];
   if (cookiesTxt) list.push(cookiesTxt); // Always prefer explicit cookies.txt
@@ -544,9 +606,18 @@ function buildCookieAttempts(runner, pref, cookiesTxtPath = "", options = {}) {
     return cookiesTxt ? [cookiesTxt, base] : [base];
   }
   // 即使用户偏好 Edge/Chrome，也先给无浏览器数据库依赖的模式机会，减少 DPAPI/数据库占用导致的提前失败。
-  if (pref === "edge") return [...list, base, edge, chrome];
+  if (pref === "edge") return [...list, base, edgeProfile, edge, chrome];
   if (pref === "chrome") return [...list, base, chrome, edge];
   return [...list, base, edge, chrome];
+}
+
+function isUsableCookiesTxt(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return false;
+  const text = fs.readFileSync(filePath, "utf8");
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith("#"));
+  if (lines.length < 3 || !lines.some((line) => /douyin\.com/i.test(line))) return false;
+  const names = new Set(lines.map((line) => line.split("\t")[5]).filter(Boolean));
+  return ["ttwid", "sessionid", "odin_tt", "passport_csrf_token"].some((name) => names.has(name));
 }
 
 async function detectYtDlpRunner(log) {

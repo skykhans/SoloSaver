@@ -126,7 +126,7 @@ ipcMain.handle("tasks:add-batch", async (_event, inputText) => {
     const parsed = parseShareText(line);
     let finalUrl = "";
     let expandError = "";
-    if (parsed.shortUrl) {
+    if (/v\.douyin\.com/i.test(parsed.shortUrl)) {
       try {
         finalUrl = (await expandUrl(parsed.shortUrl)).finalUrl || "";
       } catch (error) {
