@@ -1,0 +1,51 @@
+{
+  "name": "solosaver",
+  "version": "0.1.0",
+  "description": "Electron + SQLite desktop downloader for Douyin share texts",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "rebuild": "node -e \"console.log('sql.js 版本无需重建原生模块')\"",
+    "pack:win": "electron-builder --win nsis"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "sanitize-filename": "^1.6.3",
+    "sql.js": "^1.13.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.6.1",
+    "electron": "^27.3.11",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.solosaver.desktop",
+    "productName": "SoloSaver",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

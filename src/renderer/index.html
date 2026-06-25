@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SoloSaver</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="desktop">
+      <section class="phone-shell">
+        <div class="phone-screen">
+          <header class="mini-header">
+            <div class="mini-title">万能提取</div>
+          </header>
+
+          <section class="input-block">
+            <textarea id="batch-input" placeholder="请输入分享链接（可批量粘贴，每行一条）"></textarea>
+            <div class="action-row">
+              <button id="add-batch-btn" class="green-btn" type="button">开始提取</button>
+              <button id="paste-btn" class="green-btn alt" type="button">粘贴链接</button>
+              <button id="clear-input-btn" class="green-btn alt" type="button">清空链接</button>
+            </div>
+            <div class="action-row two">
+              <button id="start-btn" class="green-btn" type="button">开始队列</button>
+              <button id="stop-btn" class="green-btn alt" type="button">停止</button>
+            </div>
+          </section>
+
+          <p class="copyright-note">视频归平台及作者所有，本工具仅保存链接与任务信息，不内置广告。</p>
+        </div>
+      </section>
+
+      <section class="phone-shell">
+        <div class="phone-screen detail">
+          <header class="mini-header">
+            <div class="mini-title">作品详情</div>
+          </header>
+
+          <section class="detail-hero">
+            <div class="detail-avatar"></div>
+            <div class="detail-meta">
+              <h3 id="preview-title">资源标题预览</h3>
+              <p id="preview-subtitle">等待导入分享文本...</p>
+            </div>
+            <button id="refresh-btn" class="green-btn small" type="button">刷新</button>
+          </section>
+
+          <section class="detail-input">
+            <textarea id="preview-raw" readonly placeholder="这里会显示当前选中任务的原始分享文本"></textarea>
+            <div class="action-row three">
+              <button id="choose-dir-btn" class="green-btn alt" type="button">默认下载目录</button>
+              <button id="clear-queue-btn" class="green-btn alt" type="button">清空队列</button>
+              <button id="clear-completed-btn" class="green-btn alt" type="button">清理已完成</button>
+            </div>
+            <div class="download-dir-wrap compact">
+              <div class="dir-label">当前下载目录</div>
+              <input id="download-dir" readonly />
+            </div>
+            <details id="advanced-panel" class="advanced-panel">
+              <summary>高级选项</summary>
+              <div class="cookie-row">
+                <label for="cookie-browser">Cookie 来源</label>
+                <div class="cookie-controls">
+                  <select id="cookie-browser">
+                    <option value="auto">自动（失败时依次尝试）</option>
+                    <option value="edge">优先 Edge</option>
+                    <option value="chrome">优先 Chrome</option>
+                  </select>
+                  <button id="check-cookie-btn" class="green-btn ghost small" type="button">检测登录态</button>
+                </div>
+                <div class="cookie-probe-row">
+                  <button id="simulate-probe-btn" class="green-btn ghost small" type="button">自检（yt-dlp --simulate）</button>
+                </div>
+              </div>
+              <div class="cookie-row">
+                <label for="cookies-txt-path">cookies.txt</label>
+                <div class="cookie-file-controls">
+                  <input id="cookies-txt-path" type="text" readonly placeholder="未配置（可选，高级兜底）" />
+                  <button id="select-cookies-btn" class="green-btn ghost small" type="button">导入</button>
+                  <button id="open-cookies-dir-btn" class="green-btn ghost small" type="button">打开目录</button>
+                  <button id="clear-cookies-btn" class="green-btn ghost small" type="button">清空</button>
+                </div>
+              </div>
+              <div class="cookie-row">
+                <label for="cookies-txt-only-mode">重试策略</label>
+                <div class="cookie-toggle-row">
+                  <label class="checkbox-inline">
+                    <input id="cookies-txt-only-mode" type="checkbox" />
+                    <span>仅使用 cookies.txt（跳过浏览器 Cookie）</span>
+                  </label>
+                </div>
+              </div>
+              <div id="cookies-txt-meta" class="cookies-txt-meta">未配置 cookies.txt</div>
+            </details>
+          </section>
+
+          <section class="result-panel">
+            <div class="tabs">
+              <button id="tab-video" class="tab-btn active" data-tab="video" type="button">视频</button>
+              <button id="tab-image" class="tab-btn" data-tab="image" type="button">图片</button>
+            </div>
+            <div class="result-preview">
+              <div class="fake-video">
+                <img id="preview-thumb" class="preview-thumb hidden" alt="thumbnail" />
+                <video id="preview-video" class="preview-video hidden" controls preload="metadata"></video>
+                <div class="play-indicator" id="play-indicator">▶</div>
+                <div class="duration" id="preview-status">未开始</div>
+              </div>
+              <div class="meta-strip">
+                <span id="preview-url">等待解析链接...</span>
+              </div>
+              <div id="progress-wrap" class="progress-wrap hidden">
+                <div class="progress-bar"><div id="progress-bar-fill" class="progress-bar-fill"></div></div>
+                <div id="progress-text" class="progress-text">0%</div>
+              </div>
+              <div id="file-meta" class="file-meta">等待本地文件信息...</div>
+              <div id="image-grid" class="image-grid"></div>
+              <button id="toggle-images-btn" class="green-btn ghost small hidden" type="button">显示更多图片</button>
+              <div class="detail-actions">
+                <button id="copy-link-btn" class="green-btn ghost" type="button">复制链接</button>
+                <button id="open-dir-btn" class="green-btn" type="button">打开目录</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="log-section">
+            <div class="section-title">运行日志</div>
+            <pre id="log-box"></pre>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <section class="task-panel">
+      <div class="task-panel-header">
+        <div>
+          <h2>任务列表</h2>
+          <p id="task-stats">总计 0</p>
+        </div>
+        <div class="task-filters" role="tablist" aria-label="任务筛选">
+          <button id="filter-all" class="filter-btn active" data-filter="all" type="button">全部</button>
+          <button id="filter-failed" class="filter-btn" data-filter="failed" type="button">失败</button>
+          <button id="filter-queued" class="filter-btn" data-filter="queued" type="button">排队</button>
+          <button id="filter-completed" class="filter-btn" data-filter="completed" type="button">完成</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>状态</th>
+              <th>标题/原文</th>
+              <th>链接</th>
+              <th>目录</th>
+              <th>进度</th>
+              <th>文件数</th>
+              <th>错误</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="task-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div id="image-modal" class="image-modal hidden" aria-hidden="true">
+      <button id="image-modal-close" class="image-modal-close" type="button">关闭</button>
+      <img id="image-modal-img" alt="preview" />
+      <div id="image-modal-caption" class="image-modal-caption"></div>
+    </div>
+
+    <script src="./renderer.js"></script>
+  </body>
+  </html>
