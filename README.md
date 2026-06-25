@@ -24,13 +24,24 @@
 
 ## 安装与运行
 
+在项目目录执行：
+
 ```powershell
 npm install
 npm start
 ```
 
+如果 PowerShell 里设置过 `ELECTRON_RUN_AS_NODE=1`，先清掉再启动：
+
+```powershell
+Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+npm start
+```
+
 当前版本使用 `sql.js`，通常不需要 `rebuild`。
 如你之前装过旧版本（`better-sqlite3`），建议先删除 `node_modules` 和 `package-lock.json` 再执行 `npm install`。
+
+项目已不再提供 `start.bat` / `start.ps1`，统一使用 `npm start` 启动。
 
 ## 打包 Windows 安装包（exe）
 
@@ -41,23 +52,3 @@ npm run pack:win
 ```
 
 产物默认输出到 `dist/`。
-
-## 导出 cookies.txt（可选）
-
-用于抖音需要登录态时的兜底下载。
-
-PowerShell：
-
-```powershell
-.\export-cookies.ps1 -Browser edge
-.\export-cookies.ps1 -Browser chrome
-```
-
-批处理（双击或命令行）：
-
-```powershell
-.\export-cookies.bat edge
-.\export-cookies.bat chrome
-```
-
-默认会在项目目录生成 `cookies-edge.txt` 或 `cookies-chrome.txt`，再到工具的 `高级选项` 中导入该文件。
