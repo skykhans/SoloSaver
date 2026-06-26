@@ -66,8 +66,8 @@ async function handleApi(req, res, url) {
 
   const imageMatch = url.pathname.match(/^\/api\/tasks\/(\d+)\/image\/(\d+)$/);
   if (req.method === "GET" && imageMatch) return sendTaskRemoteMedia(req, res, Number(imageMatch[1]), "images", Number(imageMatch[2]), url.searchParams.has("download"));
-  const videoMatch = url.pathname.match(/^\/api\/tasks\/(\d+)\/video$/);
-  if (req.method === "GET" && videoMatch) return sendTaskRemoteMedia(req, res, Number(videoMatch[1]), "videoUrl", 0, url.searchParams.has("download"));
+  const videoMatch = url.pathname.match(/^\/api\/tasks\/(\d+)\/video(?:\/(\d+))?$/);
+  if (req.method === "GET" && videoMatch) return sendTaskRemoteMedia(req, res, Number(videoMatch[1]), "videos", Number(videoMatch[2] || 0), url.searchParams.has("download"));
   const mediaMatch = url.pathname.match(/^\/api\/tasks\/(\d+)\/media-preview$/);
   if (req.method === "GET" && mediaMatch) return sendJson(res, getTaskMediaPreview(Number(mediaMatch[1])));
 
@@ -115,14 +115,15 @@ async function extractShareLine(line) {
     }
   }
   const directImages = parsed.urls.filter((x) => /\.(jpe?g|png|webp|gif)(?:[?#]|$)/i.test(x));
-  const directVideo = parsed.urls.find((x) => /\.(mp4|webm|mov|mkv)(?:[?#]|$)/i.test(x)) || "";
+  const directVideos = parsed.urls.filter((x) => /\.(mp4|webm|mov|mkv)(?:[?#]|$)/i.test(x));
   const images = metadata?.images?.length ? metadata.images : directImages;
-  const videoUrl = metadata?.videoUrl || directVideo;
+  const videos = metadata?.videos?.length ? metadata.videos : (metadata?.videoUrl ? [metadata.videoUrl] : directVideos);
   const output = {
     awemeId: metadata?.awemeId || awemeId || "",
-    mediaType: metadata?.mediaType || (images.length ? "image" : (videoUrl ? "video" : "unknown")),
+    mediaType: metadata?.mediaType || (images.length ? "image" : (videos.length ? "video" : "unknown")),
     images,
-    videoUrl,
+    videos,
+    videoUrl: videos[0] || "",
     httpHeaders: metadata?.httpHeaders || {},
     apiResolved: !!metadata
   };
@@ -133,9 +134,9 @@ async function extractShareLine(line) {
     shortUrl: parsed.shortUrl,
     finalUrl,
     platform: parsed.platform,
-    status: images.length || videoUrl ? "extracted" : "failed",
+    status: images.length || videos.length ? "extracted" : "failed",
     output,
-    error: images.length || videoUrl ? "" : (expandError || "未提取到图片或视频地址")
+    error: images.length || videos.length ? "" : (expandError || "未提取到图片或视频地址")
   };
 }
 
@@ -149,27 +150,33 @@ function getTaskMediaPreview(taskId) {
     downloadUrl: `/api/tasks/${taskId}/image/${i}?download=1`,
     sizeBytes: 0
   })) : [];
-  const videos = task.output?.videoUrl ? [{
+  const videoSources = getTaskVideos(task);
+  const videos = videoSources.map((_src, i) => ({
     kind: "video",
-    name: `${safeFileBase(task.title || task.output?.awemeId || `task-${taskId}`)}.mp4`,
-    url: `/api/tasks/${taskId}/video`,
-    downloadUrl: `/api/tasks/${taskId}/video?download=1`,
+    name: `${safeFileBase(task.title || task.output?.awemeId || `task-${taskId}`)}${videoSources.length > 1 ? `_${String(i + 1).padStart(2, "0")}` : ""}.mp4`,
+    url: `/api/tasks/${taskId}/video${i ? `/${i}` : ""}`,
+    downloadUrl: `/api/tasks/${taskId}/video${i ? `/${i}` : ""}?download=1`,
     sizeBytes: 0
-  }] : [];
+  }));
   return { videos, images, thumbnails: [] };
 }
 
 function sendTaskRemoteMedia(req, res, taskId, field, index, download) {
   const task = getTask(taskId);
-  const source = field === "images" ? task?.output?.images?.[index] : task?.output?.videoUrl;
+  const videoSources = field === "images" ? [] : getTaskVideos(task);
+  const source = field === "images" ? task?.output?.images?.[index] : videoSources[index];
   if (!source) return sendJson(res, { error: "not found" }, 404);
   const filename = field === "images"
     ? `${safeFileBase(task.title || task.output?.awemeId || `task-${taskId}`)}_${String(index + 1).padStart(2, "0")}.jpg`
-    : `${safeFileBase(task.title || task.output?.awemeId || `task-${taskId}`)}.mp4`;
-  if (field === "videoUrl" && task.platform === "x") {
+    : `${safeFileBase(task.title || task.output?.awemeId || `task-${taskId}`)}${videoSources.length > 1 ? `_${String(index + 1).padStart(2, "0")}` : ""}.mp4`;
+  if (field === "videos" && task.platform === "x" && videoSources.length <= 1) {
     return pipeXVideo(task.shortUrl || task.rawText, res, filename, download);
   }
   return pipeRemoteMedia(res, source, filename, download, req.headers.range || "", task.output?.httpHeaders || {});
+}
+
+function getTaskVideos(task) {
+  return Array.isArray(task?.output?.videos) && task.output.videos.length ? task.output.videos : (task?.output?.videoUrl ? [task.output.videoUrl] : []);
 }
 
 function pipeRemoteMedia(res, source, filename, download, range = "", extraHeaders = {}, redirects = 0) {

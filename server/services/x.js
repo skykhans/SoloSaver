@@ -16,11 +16,12 @@ async function fetchXMetadata(url) {
     }
   }
   if (!info) throw lastError || new Error("X 视频提取失败");
-  const videoUrl = pickVideoUrl(info);
-  if (!videoUrl) throw new Error("未提取到 X 视频地址");
+  const videos = pickVideoUrls(info);
+  if (!videos.length) throw new Error("未提取到 X 视频地址");
   return {
     title: info.title || "",
-    videoUrl,
+    videos,
+    videoUrl: videos[0],
     httpHeaders: info.http_headers || {}
   };
 }
@@ -98,11 +99,17 @@ function dumpYtDlpJson(runner, url) {
 }
 
 function pickVideoUrl(info) {
-  if (info.url && /^https?:/i.test(info.url)) return info.url;
+  return pickVideoUrls(info)[0] || "";
+}
+
+function pickVideoUrls(info) {
+  const entries = Array.isArray(info?.entries) ? info.entries : [];
+  if (entries.length) return entries.map(pickVideoUrl).filter(Boolean);
+  if (info.url && /^https?:/i.test(info.url)) return [info.url];
   const formats = Array.isArray(info.formats) ? info.formats : [];
   const videos = formats.filter((f) => f.url && f.vcodec && f.vcodec !== "none");
   videos.sort((a, b) => Number(b.height || 0) - Number(a.height || 0));
-  return videos[0]?.url || "";
+  return videos[0]?.url ? [videos[0].url] : [];
 }
 
-module.exports = { fetchXMetadata, pickVideoUrl, pipeXVideo };
+module.exports = { fetchXMetadata, pickVideoUrl, pickVideoUrls, pipeXVideo };

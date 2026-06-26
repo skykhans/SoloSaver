@@ -1,0 +1,11 @@
+{
+  "appid": "touristappid",
+  "compileType": "miniprogram",
+  "libVersion": "latest",
+  "projectname": "SoloSaver",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "minified": true
+  }
+}

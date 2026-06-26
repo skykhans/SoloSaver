@@ -1,0 +1,58 @@
+<view class="page">
+  <view class="hero">
+    <text class="eyebrow">SoloSaver</text>
+    <text class="title">短视频素材提取</text>
+  </view>
+
+  <view class="panel">
+    <textarea class="input" value="{{inputText}}" maxlength="-1" placeholder="粘贴抖音分享文本或 X 链接，支持多行" bindinput="onInput" />
+    <view class="actions">
+      <button class="btn primary" loading="{{loading}}" disabled="{{loading}}" bindtap="addBatch">开始提取</button>
+      <button class="btn" bindtap="pasteClipboard">粘贴</button>
+      <button class="btn ghost" bindtap="clearInput">清空</button>
+    </view>
+  </view>
+
+  <view class="panel" wx:if="{{selectedTask}}">
+    <view class="task-head">
+      <text class="task-title">{{selectedTask.title || '未解析标题'}}</text>
+      <text class="status {{selectedTask.status}}">{{selectedTask.statusText}}</text>
+    </view>
+    <text class="link">{{selectedTask.finalUrl || selectedTask.shortUrl || '未解析到链接'}}</text>
+    <text class="meta">{{mediaSummary}}</text>
+
+    <block wx:if="{{videoUrl}}">
+      <video class="video" src="{{videoUrl}}" controls></video>
+      <scroll-view wx:if="{{videos.length > 1}}" class="video-tabs" scroll-x>
+        <button wx:for="{{videos}}" wx:key="url" class="video-chip {{item.index === currentVideoIndex ? 'active' : ''}}" bindtap="selectVideo" data-index="{{item.index}}">视频 {{item.index + 1}}</button>
+      </scroll-view>
+    </block>
+    <scroll-view wx:elif="{{images.length}}" class="images" scroll-x>
+      <view wx:for="{{images}}" wx:key="url" class="image-card">
+        <image class="image" src="{{item.url}}" mode="aspectFill" bindtap="previewImage" data-url="{{item.url}}" />
+        <button class="mini-btn" loading="{{saving && item.index === 0}}" disabled="{{saving}}" bindtap="saveImage" data-index="{{item.index}}">保存</button>
+      </view>
+    </scroll-view>
+    <view wx:else class="empty">暂无可预览媒体</view>
+
+    <view class="actions two">
+      <button wx:if="{{videoUrl}}" class="btn primary" loading="{{saving}}" disabled="{{saving}}" bindtap="saveVideo">保存视频</button>
+      <button wx:if="{{videos.length > 1}}" class="btn" loading="{{saving}}" disabled="{{saving}}" bindtap="saveAllVideos">批量保存视频</button>
+      <button wx:if="{{images.length}}" class="btn primary" loading="{{saving}}" disabled="{{saving}}" bindtap="saveAllImages">批量保存</button>
+      <button class="btn primary" bindtap="copyMediaLink" disabled="{{!mediaLink}}">复制媒体链接</button>
+      <button class="btn" bindtap="copySourceLink">复制原链接</button>
+    </view>
+  </view>
+
+  <view class="panel">
+    <view class="section-title">
+      <text>任务</text>
+      <text class="count">共 {{tasks.length}} 条</text>
+    </view>
+    <view wx:if="{{!tasks.length}}" class="empty">还没有任务</view>
+    <view wx:for="{{tasks}}" wx:key="id" class="task-row {{item.id === selectedTaskId ? 'active' : ''}}" bindtap="selectTask" data-id="{{item.id}}">
+      <text class="row-title">{{item.title || item.rawText || '未解析标题'}}</text>
+      <text class="row-meta">#{{item.id}} · {{item.statusText}}</text>
+    </view>
+  </view>
+</view>

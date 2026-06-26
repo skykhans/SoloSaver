@@ -97,17 +97,19 @@ function normalizeAwemeResponse(data, awemeId) {
       "";
     if (url) images.push(url);
   }
-  const videoUrl = images.length ? "" : (
+  const hasPlayableVideo = Number(detail?.video?.duration || 0) > 0;
+  const videoUrl = hasPlayableVideo ? normalizeVideoUrl(
     detail?.video?.play_addr?.url_list?.[0] ||
     detail?.video?.bit_rate?.[0]?.play_addr?.url_list?.[0] ||
     ""
-  );
+  ) : "";
 
   return {
     awemeId,
     title: detail?.desc || "",
-    mediaType: images.length ? "image" : (videoUrl ? "video" : "unknown"),
+    mediaType: videoUrl ? "video" : (images.length ? "image" : "unknown"),
     images,
+    videos: videoUrl ? [videoUrl] : [],
     videoUrl
   };
 }
@@ -131,5 +133,15 @@ function extractWindowJson(html, name) {
     return JSON.parse(html.slice(from, end).trim());
   } catch (_error) {
     return null;
+  }
+}
+
+function normalizeVideoUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const videoId = parsed.searchParams.get("video_id") || "";
+    return /^https?:\/\//i.test(videoId) ? videoId : url;
+  } catch (_error) {
+    return url || "";
   }
 }

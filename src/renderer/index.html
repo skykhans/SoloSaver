@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SoloSaver</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./styles.css?v=7" />
+    <link rel="stylesheet" href="./styles.css?v=8" />
   </head>
   <body>
     <main class="app-shell">
@@ -61,6 +61,7 @@
                   <div class="play-indicator" id="play-indicator">▶</div>
                   <div class="duration" id="preview-status">未开始</div>
                 </div>
+                <div id="video-list" class="video-list hidden"></div>
                 <div id="image-grid" class="image-grid"></div>
                 <button id="toggle-images-btn" class="green-btn ghost small hidden" type="button">显示更多图片</button>
               </div>
@@ -80,6 +81,7 @@
               <div class="detail-actions">
                 <button id="copy-link-btn" class="green-btn ghost" type="button">复制链接</button>
                 <button id="download-video-btn" class="green-btn ghost" type="button">下载视频</button>
+                <button id="download-all-videos-btn" class="green-btn ghost" type="button">批量下载视频</button>
                 <button id="download-all-images-btn" class="green-btn" type="button">批量下载图片</button>
               </div>
             </aside>
@@ -120,6 +122,6 @@
       <div id="image-modal-caption" class="image-modal-caption"></div>
     </div>
 
-    <script src="./renderer.js?v=7"></script>
+    <script src="./renderer.js?v=8"></script>
   </body>
 </html>

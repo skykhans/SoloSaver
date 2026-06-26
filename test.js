@@ -2,7 +2,7 @@ const assert = require("assert");
 const { Readable, Writable } = require("stream");
 const { addBatch, getTaskMediaPreview, handleRequest, parseShareText, resetForTest } = require("./server");
 const { normalizeAwemeResponse } = require("./server/services/douyin");
-const { pickVideoUrl } = require("./server/services/x");
+const { pickVideoUrl, pickVideoUrls } = require("./server/services/x");
 
 (async () => {
   resetForTest();
@@ -27,23 +27,61 @@ const { pickVideoUrl } = require("./server/services/x");
     aweme_detail: {
       desc: "图文",
       images: [{ url_list: ["https://example.com/p.jpg"] }],
-      video: { play_addr: { url_list: ["https://example.com/not-real.mp4"] } }
+      video: {
+        duration: 1234,
+        play_addr: { url_list: ["https://aweme.snssdk.com/aweme/v1/playwm/?video_id=https://example.com/not-real.mp4&ratio=720p"] }
+      }
     }
   }, "1");
-  assert.strictEqual(note.mediaType, "image");
-  assert.strictEqual(note.videoUrl, "");
+  assert.strictEqual(note.mediaType, "video");
+  assert.strictEqual(note.videoUrl, "https://example.com/not-real.mp4");
+  assert.strictEqual(note.images.length, 1);
+  const videoIdOnly = normalizeAwemeResponse({
+    aweme_detail: {
+      desc: "视频",
+      video: {
+        duration: 1234,
+        play_addr: { url_list: ["https://aweme.snssdk.com/aweme/v1/playwm/?video_id=v2700foo&ratio=720p"] }
+      }
+    }
+  }, "3");
+  assert.strictEqual(videoIdOnly.videoUrl, "https://aweme.snssdk.com/aweme/v1/playwm/?video_id=v2700foo&ratio=720p");
+  const imagePostWithAudio = normalizeAwemeResponse({
+    aweme_detail: {
+      desc: "实况图文",
+      images: [{ url_list: ["https://example.com/live.jpg"] }],
+      video: {
+        duration: 0,
+        play_addr: { url_list: ["https://aweme.snssdk.com/aweme/v1/playwm/?video_id=https://example.com/audio.mp4&ratio=720p"] }
+      }
+    }
+  }, "2");
+  assert.strictEqual(imagePostWithAudio.mediaType, "image");
+  assert.strictEqual(imagePostWithAudio.videoUrl, "");
+  assert.deepStrictEqual(imagePostWithAudio.videos, []);
+  assert.strictEqual(imagePostWithAudio.images.length, 1);
 
   const videoResult = await addBatch("【视频标题】 https://example.com/a.mp4");
   assert.strictEqual(videoResult.count, 1);
   assert.strictEqual(videoResult.tasks[0].status, "extracted");
+  assert.deepStrictEqual(videoResult.tasks[0].output.videos, ["https://example.com/a.mp4"]);
   assert.strictEqual(getTaskMediaPreview(videoResult.tasks[0].id).videos[0].kind, "video");
   assert.strictEqual(getTaskMediaPreview(videoResult.tasks[0].id).videos[0].downloadUrl.endsWith("?download=1"), true);
+  const multiVideoResult = await addBatch("【多视频】 https://example.com/a.mp4 https://example.com/b.mp4");
+  assert.strictEqual(multiVideoResult.tasks[0].output.videos.length, 2);
+  assert.strictEqual(getTaskMediaPreview(multiVideoResult.tasks[0].id).videos[1].url, `/api/tasks/${multiVideoResult.tasks[0].id}/video/1`);
   assert.strictEqual(pickVideoUrl({
     formats: [
       { url: "https://video.example/360.mp4", vcodec: "h264", height: 360 },
       { url: "https://video.example/720.mp4", vcodec: "h264", height: 720 }
     ]
   }), "https://video.example/720.mp4");
+  assert.deepStrictEqual(pickVideoUrls({
+    entries: [
+      { formats: [{ url: "https://video.example/1.mp4", vcodec: "h264", height: 360 }] },
+      { formats: [{ url: "https://video.example/2.mp4", vcodec: "h264", height: 360 }] }
+    ]
+  }), ["https://video.example/1.mp4", "https://video.example/2.mp4"]);
 
   const httpAdd = await requestJson("POST", "/api/tasks/add-batch", { inputText: "【接口视频】 https://example.com/http.mp4" });
   assert.strictEqual(httpAdd.body.count, 1);

@@ -21,6 +21,7 @@ const state = {
   tasks: [],
   selectedTaskId: null,
   activePreviewTab: "video",
+  activeVideoIndex: 0,
   mediaPreviewCache: new Map(),
   imageGridExpanded: false,
   taskFilter: "all",
@@ -36,12 +37,14 @@ const el = {
   clearInputBtn: document.querySelector("#clear-input-btn"),
   copyLinkBtn: document.querySelector("#copy-link-btn"),
   downloadVideoBtn: document.querySelector("#download-video-btn"),
+  downloadAllVideosBtn: document.querySelector("#download-all-videos-btn"),
   downloadAllImagesBtn: document.querySelector("#download-all-images-btn"),
   previewTitle: document.querySelector("#preview-title"),
   previewSubtitle: document.querySelector("#preview-subtitle"),
   previewStatus: document.querySelector("#preview-status"),
   previewUrl: document.querySelector("#preview-url"),
   mediaStage: document.querySelector("#media-stage"),
+  videoList: document.querySelector("#video-list"),
   previewVideo: document.querySelector("#preview-video"),
   previewThumb: document.querySelector("#preview-thumb"),
   playIndicator: document.querySelector("#play-indicator"),
@@ -85,6 +88,7 @@ function bindEvents() {
       await loadTasks();
       if (result.tasks?.length) {
         state.selectedTaskId = result.tasks[0].id;
+        state.activeVideoIndex = 0;
         renderPreview();
       }
     } finally {
@@ -161,7 +165,14 @@ function bindEvents() {
 
   el.downloadVideoBtn.addEventListener("click", () => {
     const media = state.mediaPreviewCache.get(state.selectedTaskId) || { videos: [] };
-    if (media.videos?.[0]) downloadMediaItem(media.videos[0]);
+    const video = media.videos?.[state.activeVideoIndex] || media.videos?.[0];
+    if (video) downloadMediaItem(video);
+  });
+
+  el.downloadAllVideosBtn.addEventListener("click", () => {
+    const media = state.mediaPreviewCache.get(state.selectedTaskId) || { videos: [] };
+    if (!media.videos?.length) return;
+    media.videos.forEach((item, i) => setTimeout(() => downloadMediaItem(item), i * 300));
   });
 
   el.downloadAllImagesBtn.addEventListener("click", () => {
@@ -193,6 +204,7 @@ async function loadTasks() {
   state.mediaPreviewCache.clear();
   if (state.tasks.length && !state.tasks.some((t) => t.id === state.selectedTaskId)) {
     state.selectedTaskId = state.tasks[0].id;
+    state.activeVideoIndex = 0;
   }
   renderTasks();
   renderPreview();
@@ -229,6 +241,7 @@ function renderTasks() {
     tr.addEventListener("click", (event) => {
       if (event.target.closest("button")) return;
       state.selectedTaskId = task.id;
+      state.activeVideoIndex = 0;
       renderTasks();
       renderPreview();
       switchView("preview");
@@ -263,7 +276,9 @@ function renderPreview() {
     el.previewUrl.textContent = "等待解析链接...";
     clearMediaPreview();
     el.downloadVideoBtn.disabled = true;
+    el.downloadAllVideosBtn.disabled = true;
     el.downloadAllImagesBtn.disabled = true;
+    updateActionButtons({ videos: [], images: [], thumbnails: [] });
     el.copyLinkBtn.disabled = true;
     return;
   }
@@ -274,8 +289,10 @@ function renderPreview() {
   el.previewUrl.textContent = task.finalUrl || task.shortUrl || "未解析到链接";
   const media = state.mediaPreviewCache.get(task.id) || { videos: [], images: [], thumbnails: [] };
   el.downloadVideoBtn.disabled = !(media.videos?.length);
+  el.downloadAllVideosBtn.disabled = !(media.videos?.length);
   el.downloadAllImagesBtn.disabled = !(media.images.length || media.thumbnails.length);
   el.copyLinkBtn.disabled = !(task.finalUrl || task.shortUrl);
+  updateActionButtons(media);
   loadAndRenderMediaPreview(task.id);
 }
 
@@ -332,19 +349,25 @@ function renderMediaPreviewForSelected() {
   const video = media.videos[0] || null;
   renderFileMeta(media, task);
   el.downloadVideoBtn.disabled = !video;
+  el.downloadAllVideosBtn.disabled = !(media.videos?.length);
   el.downloadAllImagesBtn.disabled = !(media.images.length || media.thumbnails.length);
+  updateActionButtons(media);
 
   if (state.activePreviewTab === "video") {
     el.imageGrid.innerHTML = "";
     el.imageGrid.classList.add("hidden");
     el.mediaStage.classList.remove("hidden");
+    renderVideoList(media.videos || []);
     if (video) {
-      el.previewVideo.src = video.url;
+      const videos = media.videos || [];
+      const currentVideo = videos[Math.min(state.activeVideoIndex, videos.length - 1)] || video;
+      el.previewVideo.src = currentVideo.url;
       el.previewVideo.classList.remove("hidden");
       el.previewThumb.classList.add("hidden");
       el.playIndicator.classList.add("hidden");
-      el.previewStatus.textContent = "视频";
+      el.previewStatus.textContent = videos.length > 1 ? `视频 ${state.activeVideoIndex + 1}/${videos.length}` : "视频";
     } else if (thumb) {
+      el.videoList.classList.add("hidden");
       el.previewThumb.src = thumb.url;
       el.previewThumb.classList.remove("hidden");
       el.previewVideo.classList.add("hidden");
@@ -358,6 +381,7 @@ function renderMediaPreviewForSelected() {
   }
 
   clearVisualOnly();
+  el.videoList.classList.add("hidden");
   el.mediaStage.classList.add("hidden");
   el.playIndicator.classList.add("hidden");
   el.imageGrid.classList.remove("hidden");
@@ -395,6 +419,14 @@ function renderMediaPreviewForSelected() {
   el.toggleImagesBtn.textContent = state.imageGridExpanded ? `收起图片（共 ${images.length} 张）` : `显示更多图片（共 ${images.length} 张）`;
 }
 
+function updateActionButtons(media) {
+  const hasVideos = (media.videos?.length || 0) > 0;
+  const hasImages = (media.images?.length || media.thumbnails?.length || 0) > 0;
+  el.downloadVideoBtn.classList.toggle("hidden", state.activePreviewTab !== "video" || !hasVideos);
+  el.downloadAllVideosBtn.classList.toggle("hidden", state.activePreviewTab !== "video" || (media.videos?.length || 0) <= 1);
+  el.downloadAllImagesBtn.classList.toggle("hidden", state.activePreviewTab !== "image" || !hasImages);
+}
+
 function clearVisualOnly() {
   el.previewVideo.pause();
   el.previewVideo.removeAttribute("src");
@@ -407,12 +439,32 @@ function clearVisualOnly() {
 function clearMediaPreview() {
   clearVisualOnly();
   el.mediaStage.classList.remove("hidden");
+  el.videoList.innerHTML = "";
+  el.videoList.classList.add("hidden");
   el.imageGrid.innerHTML = "";
   el.imageGrid.classList.add("hidden");
   el.toggleImagesBtn.classList.add("hidden");
   el.playIndicator.classList.add("hidden");
   el.fileMeta.textContent = "等待提取结果...";
   closeImageModal();
+}
+
+function renderVideoList(videos) {
+  el.videoList.innerHTML = "";
+  el.videoList.classList.toggle("hidden", videos.length <= 1);
+  if (videos.length <= 1) return;
+  if (state.activeVideoIndex >= videos.length) state.activeVideoIndex = 0;
+  videos.forEach((_item, i) => {
+    const btn = document.createElement("button");
+    btn.className = `video-chip${i === state.activeVideoIndex ? " active" : ""}`;
+    btn.type = "button";
+    btn.textContent = `视频 ${i + 1}`;
+    btn.addEventListener("click", () => {
+      state.activeVideoIndex = i;
+      renderMediaPreviewForSelected();
+    });
+    el.videoList.appendChild(btn);
+  });
 }
 
 function renderFileMeta(media, task) {
