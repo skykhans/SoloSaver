@@ -1,5 +1,3 @@
-const axios = require("axios");
-
 function extractAwemeId(url) {
   if (!url) return "";
   const patterns = [/\/video\/(\d+)/i, /\/note\/(\d+)/i, /modal_id=(\d+)/i, /aweme_id=(\d+)/i];
@@ -20,16 +18,15 @@ async function fetchDouyinMetadataByApi(awemeId) {
   let lastError = null;
   for (const url of endpoints) {
     try {
-      const res = await axios.get(url, {
-        timeout: 15000,
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(15000),
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0 Safari/537.36",
           Referer: "https://www.douyin.com/"
-        },
-        validateStatus: () => true
+        }
       });
-      if (res.status >= 200 && res.status < 300) {
-        const normalized = normalizeAwemeResponse(res.data, awemeId);
+      if (res.ok) {
+        const normalized = normalizeAwemeResponse(await res.json(), awemeId);
         if (normalized) return normalized;
         lastError = new Error("api response missing aweme detail");
         continue;
@@ -49,17 +46,16 @@ async function fetchDouyinMetadataByApi(awemeId) {
 }
 
 async function fetchDouyinMetadataBySharePage(awemeId) {
-  const res = await axios.get(`https://www.iesdouyin.com/share/video/${encodeURIComponent(awemeId)}/`, {
-    timeout: 15000,
+  const res = await fetch(`https://www.iesdouyin.com/share/video/${encodeURIComponent(awemeId)}/`, {
+    signal: AbortSignal.timeout(15000),
     headers: {
       "User-Agent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 Chrome/122.0 Mobile Safari/537.36",
       Referer: "https://www.iesdouyin.com/"
-    },
-    validateStatus: () => true
+    }
   });
-  if (res.status < 200 || res.status >= 300) throw new Error(`share page status ${res.status}`);
+  if (!res.ok) throw new Error(`share page status ${res.status}`);
 
-  const html = decodeHtml(String(res.data || ""));
+  const html = decodeHtml(await res.text());
   const routerData = extractWindowJson(html, "_ROUTER_DATA");
   const videoInfoRes = routerData?.loaderData?.["video_(id)/page"]?.videoInfoRes
     || routerData?.loaderData?.["note_(id)/page"]?.videoInfoRes;
@@ -101,10 +97,11 @@ function normalizeAwemeResponse(data, awemeId) {
       "";
     if (url) images.push(url);
   }
-  const videoUrl =
+  const videoUrl = images.length ? "" : (
     detail?.video?.play_addr?.url_list?.[0] ||
     detail?.video?.bit_rate?.[0]?.play_addr?.url_list?.[0] ||
-    "";
+    ""
+  );
 
   return {
     awemeId,
@@ -115,7 +112,7 @@ function normalizeAwemeResponse(data, awemeId) {
   };
 }
 
-module.exports = { extractAwemeId, fetchDouyinMetadataByApi };
+module.exports = { extractAwemeId, fetchDouyinMetadataByApi, normalizeAwemeResponse };
 
 function decodeHtml(text) {
   return text

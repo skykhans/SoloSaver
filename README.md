@@ -1,54 +1,94 @@
-# SoloSaver (Electron + SQLite)
+# SoloSaver
 
-桌面版抖音分享提取/批量下载工具。
+抖音分享文本和 X 视频素材提取工具。
 
-## 技术栈
+当前项目只有网页前端和一个 Node 服务：
 
-- `Electron`：桌面 UI
-- `SQLite`（`sql.js`，WASM 版本）：任务与设置存储（免本地编译）
-- `yt-dlp`：实际下载视频/图集（支持批量）
+- 不使用数据库
+- 不保存下载队列
+- 不在服务端落盘下载文件
+- 提取到视频/图片地址后，在浏览器里预览和下载
 
-## 功能
+## 环境要求
 
-- 分享文本批量导入（每行一条）
-- 提取短链/标题/口令片段
-- 默认下载目录设置（持久化）
-- 批量下载对应视频和图片（图集）
-- 任务状态与日志
+- Node.js 18+
+- yt-dlp（X 视频提取需要）
 
-## 运行前准备
+Windows 安装 `yt-dlp`：
 
-1. 安装 `Node.js`（建议 18+）
-2. 安装 `yt-dlp` 并加入 `PATH`
-3. 可选安装 `ffmpeg`（部分视频格式合并需要）
+```powershell
+py -m pip install -U yt-dlp
+```
 
-## 安装与运行
-
-在项目目录执行：
+## 本地启动
 
 ```powershell
 npm install
+npm run doctor
 npm start
 ```
 
-如果 PowerShell 里设置过 `ELECTRON_RUN_AS_NODE=1`，先清掉再启动：
+打开：
+
+```text
+http://localhost:3000
+```
+
+端口被占用时：
 
 ```powershell
-Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+$env:PORT=3001
 npm start
 ```
 
-当前版本使用 `sql.js`，通常不需要 `rebuild`。
-如你之前装过旧版本（`better-sqlite3`），建议先删除 `node_modules` 和 `package-lock.json` 再执行 `npm install`。
+然后打开：
 
-项目已不再提供 `start.bat` / `start.ps1`，统一使用 `npm start` 启动。
-
-## 打包 Windows 安装包（exe）
-
-先安装依赖后执行：
-
-```powershell
-npm run pack:win
+```text
+http://localhost:3001
 ```
 
-产物默认输出到 `dist/`。
+本地自检：
+
+```powershell
+npm run verify
+```
+
+联网验证 X 提取：
+
+```powershell
+npm run smoke:x
+```
+
+## 使用方式
+
+1. 粘贴抖音分享文本或 X 视频链接。
+2. 点击“开始提取”。
+3. 在“预览”页签查看视频或图片。
+4. 视频点“下载视频”，单张图片点图片上的“下载”，图片合集点“批量下载图片”。
+
+X 链接示例：
+
+```text
+https://x.com/i/status/2066958204870017355
+```
+
+## CentOS 启动
+
+```bash
+npm install
+python3 -m pip install -U yt-dlp
+npm run doctor
+PORT=3000 npm start
+```
+
+浏览器访问：
+
+```text
+http://服务器IP:3000
+```
+
+长期运行建议交给 `systemd`、`pm2` 或服务器现有进程管理器。
+
+## 说明
+
+任务只存在当前 Node 进程内存里，重启服务后会清空。

@@ -1,0 +1,5 @@
+
+> solosaver@0.1.0 start
+> powershell -NoProfile -Command "$env:NODE_OPTIONS=''; node server.js"
+
+SoloSaver: http://localhost:3000
